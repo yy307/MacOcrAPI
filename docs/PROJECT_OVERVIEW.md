@@ -34,6 +34,8 @@ flowchart LR
 
 未发现 cron、calendar schedule、systemd timer 或 GitHub Actions `schedule`。仓库内静态 plist 含旧机器绝对路径，不应直接安装；以 `setup_autostart.sh` 当前路径生成的 plist 为准。
 
+2026-08-30 实机复核：`~/Library/LaunchAgents/com.ocrmac.api.plist` 已安装，使用当前项目的虚拟环境与 `main.py`，监听 loopback `127.0.0.1:8700`；`launchctl` 状态为 running。该实机任务与上表一致。
+
 ## 敏感信息检查与整改
 
 - 本机 `.env` 含认证 token/LLM API key 配置，已被 `.gitignore` 排除且未被 Git 跟踪。保持最小文件权限，若曾经复制到聊天、日志或历史提交，应立即轮换。
