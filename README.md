@@ -1,5 +1,7 @@
 # OCR Mac API
 
+项目需求、架构图、常驻任务与安全检查见 [`docs/PROJECT_OVERVIEW.md`](docs/PROJECT_OVERVIEW.md)。
+
 基于 macOS 原生 OCR 能力的高性能 HTTP API 服务。
 
 ## 🚀 快速开始
@@ -167,4 +169,4 @@ LLM_TIMEOUT=30
 
 ## �� 许可证
 
-MIT License 
+MIT License
