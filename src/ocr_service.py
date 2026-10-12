@@ -113,8 +113,8 @@ class OCRService:
             # 重新抛出已知的 ValueError
             raise
         except Exception as e:
-            self.logger.error(f"图像转换失败: {str(e)}")
-            raise ValueError(f"图像转换失败: {str(e)}")
+            self.logger.error("图像转换失败")
+            raise ValueError("图像转换失败") from None
     
     def _convert_result_format(self, 
                               ocr_results: List[Tuple[str, float, List[float]]], 
@@ -179,8 +179,8 @@ class OCRService:
             return results
             
         except Exception as e:
-            self.logger.error(f"OCR 识别失败: {str(e)}")
-            raise RuntimeError(f"OCR 识别失败: {str(e)}")
+            self.logger.error("OCR 识别失败")
+            raise RuntimeError("OCR 识别失败") from None
     
     async def process_image(self, 
                           image_base64: str,
@@ -255,7 +255,7 @@ class OCRService:
             # 更新统计信息
             self.stats['failed_requests'] += 1
             
-            self.logger.error(f"OCR 处理失败: {str(e)}")
+            self.logger.error("OCR 处理失败")
             raise
     
     def get_stats(self) -> Dict[str, Any]:

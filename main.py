@@ -43,7 +43,7 @@ def main():
         from PIL import Image
         logger.info("必要的依赖检查通过")
     except ImportError as e:
-        logger.error(f"缺少必要的依赖: {e}")
+        logger.error("缺少必要的依赖")
         logger.error("请运行 'pip install -r requirements.txt' 安装依赖")
         sys.exit(1)
     
@@ -60,14 +60,14 @@ def main():
             workers=args.workers if not args.debug else 1,
             reload=args.reload,
             log_level=args.log_level.lower(),
-            access_log=True
+            access_log=False
         )
     except KeyboardInterrupt:
         logger.info("服务器已停止")
     except Exception as e:
-        logger.error(f"服务器启动失败: {e}")
+        logger.error("服务器启动失败")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    main() 
+    main()

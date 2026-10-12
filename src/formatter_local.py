@@ -221,11 +221,11 @@ def format_locally(results: List[OCRResult],
         return FormattedResult(markdown=markdown, success=True)
 
     except Exception as e:
-        logger.error(f"本地排版失败: {str(e)}")
+        logger.error("本地排版失败")
         return FormattedResult(
             markdown="",
             success=False,
-            error=str(e)
+            error="本地排版失败"
         )
 
 

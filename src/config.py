@@ -4,6 +4,7 @@
 """
 import os
 from typing import List, Optional
+from pydantic import Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -16,8 +17,18 @@ class Settings(BaseSettings):
     workers: int = 4
     
     # 安全配置
-    auth_token: str = "test"
+    auth_token: SecretStr
     allowed_origins: str = "*"  # 简化为字符串，在使用时转换为列表
+
+    @field_validator("auth_token")
+    @classmethod
+    def require_configured_token(cls, value: SecretStr) -> SecretStr:
+        token = value.get_secret_value()
+        if not token.strip() or token.strip().lower() in {
+            "test", "your-secure-token-here", "<redacted>", "<from-keychain>"
+        }:
+            raise ValueError("AUTH_TOKEN must be explicitly configured")
+        return value
     
     # OCR 配置
     recognition_level: str = "accurate"  # accurate 或 fast
@@ -47,8 +58,8 @@ class Settings(BaseSettings):
     request_timeout: int = 30  # 30秒
 
     # LLM 排版配置
-    llm_base_url: Optional[str] = None  # OpenAI 兼容 API 地址
-    llm_api_key: Optional[str] = None  # API 密钥
+    llm_base_url: Optional[str] = Field(None, repr=False)  # OpenAI 兼容 API 地址
+    llm_api_key: Optional[str] = Field(None, repr=False)  # API 密钥
     llm_model: str = "gpt-4o-mini"  # 模型名称
     llm_timeout: int = 30  # LLM 请求超时（秒）
     llm_max_tokens: int = 4096  # 最大输出 token 数
@@ -60,7 +71,12 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        hide_input_in_errors = True
 
 
 # 全局配置实例
-settings = Settings() 
+try:
+    settings = Settings()
+except ValidationError:
+    # Do not expose env values through a startup traceback.
+    raise RuntimeError("Invalid OCR configuration; check the private .env") from None

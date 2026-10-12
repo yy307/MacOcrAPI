@@ -80,7 +80,7 @@ async def format_with_llm(results: List[OCRResult]) -> FormattedResult:
             # 提取响应内容
             if "choices" in data and len(data["choices"]) > 0:
                 markdown = data["choices"][0]["message"]["content"].strip()
-                logger.info(f"LLM 排版完成，输出长度: {len(markdown)}")
+                logger.info("LLM 排版完成")
                 return FormattedResult(markdown=markdown, success=True)
             else:
                 return FormattedResult(
@@ -95,11 +95,11 @@ async def format_with_llm(results: List[OCRResult]) -> FormattedResult:
         return FormattedResult(markdown="", success=False, error=error_msg)
 
     except httpx.HTTPStatusError as e:
-        error_msg = f"LLM API 错误: {e.response.status_code} - {e.response.text}"
+        error_msg = f"LLM HTTP 错误 ({e.response.status_code})"
         logger.error(error_msg)
         return FormattedResult(markdown="", success=False, error=error_msg)
 
     except Exception as e:
-        error_msg = f"LLM 排版失败: {str(e)}"
+        error_msg = "LLM 排版失败"
         logger.error(error_msg)
         return FormattedResult(markdown="", success=False, error=error_msg)
