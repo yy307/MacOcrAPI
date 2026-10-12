@@ -3,6 +3,7 @@ FastAPI 路由和处理逻辑
 提供 HTTP API 接口
 """
 import logging
+import hmac
 import time
 from datetime import datetime
 from typing import List, Dict, Any
@@ -42,12 +43,35 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Uvicorn and HTTP clients otherwise log raw URLs (including query values).
+# Apply in the app too, so direct uvicorn entrypoints have the same boundary.
+for name in ("uvicorn.access", "httpx", "httpcore"):
+    dependency_logger = logging.getLogger(name)
+    dependency_logger.handlers.clear()
+    dependency_logger.addHandler(logging.NullHandler())
+    dependency_logger.propagate = False
+
+class _ServerErrorFilter(logging.Filter):
+    def filter(self, record):
+        # ServerErrorMiddleware re-raises after our fixed 500 response; Uvicorn
+        # would otherwise print that original exception and its traceback.
+        if record.levelno >= logging.ERROR or record.exc_info:
+            record.msg = "ASGI server error"
+            record.args = ()
+            record.exc_info = None
+            record.exc_text = None
+            record.stack_info = None
+        return True
+
+
+logging.getLogger("uvicorn.error").addFilter(_ServerErrorFilter())
+
 # 创建 FastAPI 应用
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="基于 ocrmac 的高并发 OCR API 服务",
-    debug=settings.debug
+    debug=False  # Raw error tracebacks must never become HTTP responses.
 )
 
 # 添加 CORS 中间件
@@ -68,7 +92,8 @@ app_start_time = time.time()
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Security(security)):
     """验证认证令牌"""
-    if credentials.credentials != settings.auth_token:
+    if not hmac.compare_digest(credentials.credentials.encode(),
+                               settings.auth_token.get_secret_value().encode()):
         raise HTTPException(
             status_code=401,
             detail="无效的认证令牌"
@@ -79,7 +104,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Security(security))
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """HTTP 异常处理器"""
-    logger.error(f"HTTP 异常: {exc.status_code} - {exc.detail}")
+    logger.error("HTTP 异常 status=%s", exc.status_code)
     return JSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
@@ -94,12 +119,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """请求验证异常处理器"""
-    logger.error(f"请求验证异常: {exc.errors()}")
+    logger.error("请求验证失败 status=422")
     return JSONResponse(
         status_code=422,
         content=ErrorResponse(
             error="VALIDATION_ERROR",
-            message=f"请求验证失败: {exc.errors()}",
+            message="请求参数验证失败",
             code=422,
             timestamp=datetime.now().isoformat()
         ).dict()
@@ -109,7 +134,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     """通用异常处理器"""
-    logger.error(f"未捕获的异常: {str(exc)}", exc_info=True)
+    logger.error("未捕获的异常 status=500")
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(
@@ -126,9 +151,6 @@ async def log_requests(request: Request, call_next):
     """请求日志中间件"""
     start_time = time.time()
     
-    # 记录请求
-    logger.info(f"收到请求: {request.method} {request.url}")
-    
     # 处理请求
     response = await call_next(request)
     
@@ -136,7 +158,13 @@ async def log_requests(request: Request, call_next):
     process_time = time.time() - start_time
     
     # 记录响应
-    logger.info(f"响应完成: {response.status_code} - 耗时: {process_time:.3f}s")
+    route = request.scope.get("route")
+    route_label = getattr(route, "path", "<unmatched>")
+    method = request.method if request.method in {
+        "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"
+    } else "OTHER"
+    logger.info("请求完成 method=%s route=%s status=%s duration=%.3f",
+                method, route_label, response.status_code, process_time)
     
     # 添加处理时间到响应头
     response.headers["X-Process-Time"] = str(process_time)
@@ -226,13 +254,13 @@ async def predict(
         return result['results']
         
     except ValueError as e:
-        logger.error(f"输入验证错误: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("OCR 输入验证失败")
+        raise HTTPException(status_code=400, detail="无效的图像数据或 OCR 参数") from None
     except RuntimeError as e:
-        logger.error(f"OCR 处理错误: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("OCR 处理失败")
+        raise HTTPException(status_code=500, detail="OCR 处理失败") from None
     except Exception as e:
-        logger.error(f"未知错误: {str(e)}", exc_info=True)
+        logger.error("OCR 未知错误")
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
@@ -281,13 +309,13 @@ async def predict_format(
         )
 
     except ValueError as e:
-        logger.error(f"输入验证错误: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("OCR 输入验证失败")
+        raise HTTPException(status_code=400, detail="无效的图像数据或 OCR 参数") from None
     except RuntimeError as e:
-        logger.error(f"OCR 处理错误: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("OCR 处理失败")
+        raise HTTPException(status_code=500, detail="OCR 处理失败") from None
     except Exception as e:
-        logger.error(f"未知错误: {str(e)}", exc_info=True)
+        logger.error("OCR 未知错误")
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
@@ -315,7 +343,7 @@ async def get_supported_languages(token: str = Depends(verify_token)):
             }
             
     except Exception as e:
-        logger.error(f"获取支持语言失败: {str(e)}")
+        logger.error("获取支持语言失败")
         raise HTTPException(status_code=500, detail="无法获取支持的语言列表")
 
 
@@ -332,4 +360,4 @@ async def startup_event():
 async def shutdown_event():
     """应用关闭事件"""
     logger.info(f"{settings.app_name} 正在关闭...")
-    # 这里可以添加清理代码 
+    # 这里可以添加清理代码

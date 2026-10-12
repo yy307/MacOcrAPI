@@ -1,5 +1,7 @@
 # OCR Mac API
 
+项目需求、架构图、常驻任务与安全检查见 [`docs/PROJECT_OVERVIEW.md`](docs/PROJECT_OVERVIEW.md)。
+
 基于 macOS 原生 OCR 能力的高性能 HTTP API 服务。
 
 ## 🚀 快速开始
@@ -12,7 +14,8 @@ pip install -r requirements.txt
 ### 2. 配置服务
 ```bash
 cp config.example.env .env
-# 编辑 .env 文件，修改认证令牌等配置
+# 编辑 .env，必须填写 AUTH_TOKEN；空值或示例值拒绝启动
+chmod 600 .env
 ```
 
 ### 3. 启动服务
@@ -167,4 +170,8 @@ LLM_TIMEOUT=30
 
 ## �� 许可证
 
-MIT License 
+MIT License
+
+## 配置恢复与安全诊断
+
+详见 [配置认证、日志与恢复合同](docs/security-recovery.md)。请求和错误日志只保留固定分类；真实配置保持 Git 忽略。
